@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"gocv.io/x/gocv"
 	"image"
-	"io"
+	// "io"
+	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
 	"os"
+
+	"gopkg.in/h2non/filetype.v1"
 )
 
 type FaceDetector struct {
@@ -54,26 +57,45 @@ func (fd *FaceDetector) DetectFace(img gocv.Mat) image.Rectangle {
 	return maxRect
 }
 
-func (fd *FaceDetector) DetectFaceFromUrl(url string) image.Rectangle {
+func (fd *FaceDetector) DetectFaceFromUrl(url, suffix string) image.Rectangle {
+	path := "output/images/" + suffix
+
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Println("error", err)
 	}
 	defer resp.Body.Close()
 
+	bd, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("error", err)
+	}
+
+	kind, unknown := filetype.Match(bd)
+	if unknown != nil {
+		fmt.Printf("\tUnknown: %s", unknown)
+	}
+
+	fmt.Printf("File type: %s. MIME: %s\n", kind.Extension, kind.MIME.Value)
+	if kind.Extension == "png" {
+		log.Println("Skip image", path)
+		return image.Rectangle{}
+	}
+
 	// im, _, err := image.Decode(resp.Body())
-	file, err := os.Create("/tmp/asdf.jpg")
+	// file, err := os.Create(path)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// _, err = io.Copy(file, bd)
+	err = ioutil.WriteFile(path, bd, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// file.Close()
 
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	file.Close()
-
-	mat := gocv.IMRead(file.Name(), gocv.IMReadUnchanged)
+	mat := gocv.IMRead(path, gocv.IMReadUnchanged)
 
 	return fd.DetectFace(mat)
 }

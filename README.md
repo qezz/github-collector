@@ -20,6 +20,9 @@
 ```
 # opencv
 go get -u -d gocv.io/x/gocv
+
+# mongo
+go get github.com/globalsign/mgo/...
 ```
 
 ## Run on macOS

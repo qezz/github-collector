@@ -6,10 +6,14 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/qezz/github-collector/face"
 	// "gocv.io/x/gocv"
+	"github.com/globalsign/mgo"
 	"golang.org/x/oauth2"
 	"log"
 	"os"
-	"runtime"
+	"time"
+	// "runtime"
+
+	"github.com/qezz/github-collector/models"
 )
 
 const (
@@ -17,7 +21,7 @@ const (
 )
 
 func main() {
-	runtime.LockOSThread()
+	// runtime.LockOSThread()
 	log.Println("Service started")
 
 	ghToken := os.Getenv(githubTokenEnvVar)
@@ -34,35 +38,35 @@ func main() {
 
 	client := github.NewClient(tc)
 
-	// repos, _, err := client.Repositories.List(ctx, "", nil)
-	// if err != nil {
-	// 	log.Fatal("Cannot get user repos")
-	// }
-
-	// for i, r := range repos {
-	// 	log.Printf("%v: %v", i, r)
-	// }
-
-	/// ---
-
 	xmlFile := "/Users/sergey-mishin/projects/university/project/resources/cv-rs/assets/haarcascade_frontalface_default.xml"
 
 	fd := face.NewFaceDetector(xmlFile)
 	defer fd.Drop()
 
-	// fd.DetectFace(img)
+	// --- mongo
 
-	// saveFile := "output.jpg"
-	// gocv.IMWrite(saveFile, img)
+	session, err := mgo.Dial("127.0.0.1")
+	if err != nil {
+		panic(err)
+	}
 
-	/// --- search users test
+	defer session.Close()
+
+	session.SetMode(mgo.Monotonic, true)
+
+	c := session.DB("deepllp-debug").C("people")
+
+	// ---
+
+	fd.DetectFaceFromUrl("https://avatars2.githubusercontent.com/u/3346272?s=460&v=4", "meow")
+
+	// return
 
 	opts := &github.SearchOptions{
 		Sort:        "followers",
 		Order:       "desc",
-		ListOptions: github.ListOptions{PerPage: 1},
+		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	// opts.Page
 
 	for {
 		res, resp, err := client.Search.Users(ctx, "followers:>6000", opts)
@@ -74,21 +78,27 @@ func main() {
 		fmt.Println("---", opts.Page, "/", resp.LastPage)
 		fmt.Println("Total found:", res.GetTotal())
 		for i, user := range res.Users {
-			// fmt.Println(i, "\t", *user.Login,
-			// 	"\t[", user.GetLocation(),
-			// 	"]\t", user.GetAvatarURL())
-			fmt.Println(i, user)
-			fd.DetectFaceFromUrl(user.GetAvatarURL())
+			// fmt.Println(i, user)
+			fmt.Printf("%v ", i)
+			u, _, err := client.Users.Get(ctx, user.GetLogin())
+			if err != nil {
+				log.Fatalln("Can't get user")
+			}
+			uuu := models.NewUser(u.GetID(), u.GetLogin(), u.GetName(), u.GetLocation())
+			fmt.Println(uuu)
+			err = c.Insert(&uuu)
+			if err != nil {
+				log.Println("DB Wirte error:", err)
+			}
+
+			fd.DetectFaceFromUrl(user.GetAvatarURL(), u.GetLogin())
 		}
 
-		break
+		time.Sleep(1 * time.Second)
 
-		// if resp.NextPage == 0 {
-		// 	break
-		// }
-		// opts.Page = resp.NextPage
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-
-	// ---
-
 }
