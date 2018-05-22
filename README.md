@@ -1,4 +1,4 @@
-# Collect data about users from github
+# Collect data about Github users
 
 ## How to
 
@@ -7,13 +7,11 @@
    * set access to **user**
    * Generate token
 
-
 ## Why use API token?
 
 * GitHub imposes a rate limit on all API clients. Unauthenticated
   clients are limited to 60 requests per hour, while authenticated
   clients can make up to 5,000 requests per hour. 
-* actually 32 per minute == 1920 per hour
 
 ## Deps
 
@@ -31,6 +29,8 @@ go get github.com/globalsign/mgo/...
 brew cleanup opencv # ensures that you have only one version installed
 
 source ./env.sh
+
+go run main.go
 ```
 
 
