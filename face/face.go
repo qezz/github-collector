@@ -5,6 +5,7 @@ import (
 	"gocv.io/x/gocv"
 	"image"
 	// "io"
+	"errors"
 	"io/ioutil"
 	"log"
 	"math"
@@ -36,15 +37,18 @@ func RectArea(r image.Rectangle) float64 {
 	return sideX * sideY
 }
 
-func (fd *FaceDetector) DetectFace(img gocv.Mat) image.Rectangle {
-	// detect faces
-
+// Find max face rectangle
+func (fd *FaceDetector) DetectFace(img gocv.Mat) (image.Rectangle, error) {
 	if img.Empty() {
-		log.Fatalln("true == img.Empty()")
+		log.Println("true == img.Empty()")
+		return image.Rectangle{}, errors.New("Image is empty")
 	}
 
 	rects := fd.Classifier.DetectMultiScale(img)
 	fmt.Printf("found %d faces\n", len(rects))
+	if len(rects) == 0 {
+		return image.Rectangle{}, errors.New("no faces was found")
+	}
 
 	var maxRect image.Rectangle
 	for _, r := range rects {
@@ -54,44 +58,40 @@ func (fd *FaceDetector) DetectFace(img gocv.Mat) image.Rectangle {
 	}
 
 	fmt.Println("max rect: ", maxRect)
-	return maxRect
+	return maxRect, nil
 }
 
-func (fd *FaceDetector) DetectFaceFromUrl(url, suffix string) image.Rectangle {
-	path := "output/images/" + suffix
+func (fd *FaceDetector) DetectFaceFromUrl(url, suffix string) (image.Rectangle, error) {
+	prefix := "output/images/"
+	err := os.MkdirAll(prefix, os.ModePerm)
+	if err != nil {
+		log.Println("error", err)
+		return image.Rectangle{}, err
+	}
+
+	path := prefix + suffix + ".jpg"
 
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Println("error", err)
+		return image.Rectangle{}, err
 	}
 	defer resp.Body.Close()
 
 	bd, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println("error", err)
+		return image.Rectangle{}, err
 	}
 
-	kind, unknown := filetype.Match(bd)
-	if unknown != nil {
-		fmt.Printf("\tUnknown: %s", unknown)
+	if !IsJpg(bd, path) {
+		return image.Rectangle{}, errors.New("not jpeg")
 	}
 
-	fmt.Printf("File type: %s. MIME: %s\n", kind.Extension, kind.MIME.Value)
-	if kind.Extension == "png" {
-		log.Println("Skip image", path)
-		return image.Rectangle{}
-	}
-
-	// im, _, err := image.Decode(resp.Body())
-	// file, err := os.Create(path)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// _, err = io.Copy(file, bd)
 	err = ioutil.WriteFile(path, bd, os.ModePerm)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return image.Rectangle{}, err
 	}
 	// file.Close()
 
@@ -102,4 +102,19 @@ func (fd *FaceDetector) DetectFaceFromUrl(url, suffix string) image.Rectangle {
 
 func (fd *FaceDetector) Drop() {
 	fd.Classifier.Close()
+}
+
+func IsJpg(bd []byte, path string) bool {
+	kind, unknown := filetype.Match(bd)
+	if unknown != nil {
+		fmt.Printf("\tUnknown: %s", unknown)
+	}
+
+	fmt.Printf("File type: %s. MIME: %s\n", kind.Extension, kind.MIME.Value)
+	if kind.Extension == "png" {
+		log.Println("Skip image", path)
+		return false
+	}
+
+	return true
 }

@@ -54,11 +54,16 @@ func main() {
 
 	session.SetMode(mgo.Monotonic, true)
 
-	c := session.DB("deepllp-debug").C("people")
+	c := session.DB("deepllp-github-debug").C("people")
+
+	err = c.DropCollection()
+	if err != nil {
+		log.Println("Cannot drop collection:", err)
+	}
 
 	// ---
 
-	fd.DetectFaceFromUrl("https://avatars2.githubusercontent.com/u/3346272?s=460&v=4", "meow")
+	// fd.DetectFaceFromUrl("https://avatars2.githubusercontent.com/u/3346272?s=460&v=4", "meow")
 
 	// return
 
@@ -69,7 +74,7 @@ func main() {
 	}
 
 	for {
-		res, resp, err := client.Search.Users(ctx, "followers:>6000", opts)
+		res, resp, err := client.Search.Users(ctx, "followers:>1000", opts)
 
 		if err != nil {
 			log.Fatal("Cannot search for users:", err)
@@ -84,14 +89,26 @@ func main() {
 			if err != nil {
 				log.Fatalln("Can't get user")
 			}
-			uuu := models.NewUser(u.GetID(), u.GetLogin(), u.GetName(), u.GetLocation())
-			fmt.Println(uuu)
+			if u.GetLocation() == "" {
+				continue
+			}
+			uuu := models.NewUser(u.GetID(), u.GetLogin(), u.GetName(), u.GetLocation(), *u.AvatarURL)
+			// fmt.Println(uuu)
+
+			_, err = fd.DetectFaceFromUrl(user.GetAvatarURL(), u.GetLogin())
+			if err != nil {
+				continue
+			}
+
+			fmt.Println("== INSERT ==")
+			fmt.Println("id ", u.GetLogin())
+			fmt.Println("loc", u.GetLocation())
+			fmt.Println("ava", *u.AvatarURL)
+			fmt.Println("============")
 			err = c.Insert(&uuu)
 			if err != nil {
 				log.Println("DB Wirte error:", err)
 			}
-
-			fd.DetectFaceFromUrl(user.GetAvatarURL(), u.GetLogin())
 		}
 
 		time.Sleep(1 * time.Second)
@@ -101,4 +118,38 @@ func main() {
 		}
 		opts.Page = resp.NextPage
 	}
+
+	// for {
+	// 	res, resp, err := client.Search.Users(ctx, "location:africa", opts)
+
+	// 	if err != nil {
+	// 		log.Fatal("Cannot search for users:", err)
+	// 	}
+
+	// 	fmt.Println("---", opts.Page, "/", resp.LastPage)
+	// 	fmt.Println("Total found:", res.GetTotal())
+	// 	for i, user := range res.Users {
+	// 		// fmt.Println(i, user)
+	// 		fmt.Printf("%v ", i)
+	// 		u, _, err := client.Users.Get(ctx, user.GetLogin())
+	// 		if err != nil {
+	// 			log.Fatalln("Can't get user")
+	// 		}
+	// 		uuu := models.NewUser(u.GetID(), u.GetLogin(), u.GetName(), u.GetLocation())
+	// 		fmt.Println(uuu)
+	// 		err = c.Insert(&uuu)
+	// 		if err != nil {
+	// 			log.Println("DB Wirte error:", err)
+	// 		}
+
+	// 		fd.DetectFaceFromUrl(user.GetAvatarURL(), u.GetLogin())
+	// 	}
+
+	// 	time.Sleep(1 * time.Second)
+
+	// 	if resp.NextPage == 0 {
+	// 		break
+	// 	}
+	// 	opts.Page = resp.NextPage
+	// }
 }
